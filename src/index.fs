@@ -6,22 +6,24 @@ module ExpressHelpers =
   type ExpressContext = {
     Request: express.Request
     Response: express.Response
+    Content: string
   }
 
   type ExpressPart = ExpressContext -> ExpressContext option
 
   let bind p1 ctx = 
     match ctx with
-    | Some ctx -> p1 ctx
+    | Some ctx' -> p1 ctx'
     | None -> None
 
   let compose p1 p2 ctx = 
     match p1 ctx with
     | None -> None
-    | Some ctx -> p2 ctx
+    | Some ctx' -> p2 ctx'
 
-  let (>>=) x p = p x
-  let (>=>) p1 p2 = compose p1 p2 
+  let (>>=) x p = p x // ctx >>= expressPart --> context
+
+  let (>=>) p1 p2 = compose p1 p2 // expressPart1 >=> expressPart2 --> expressPart3
 
   let rec choose parts ctx = 
     match parts with
@@ -33,8 +35,16 @@ module ExpressHelpers =
 
   let answer = function
     | Some ctx ->
-      ctx.Response
+      ctx.Response.send ctx.Content
     | None -> raise (exn "Failed")
+
+  let execute request response app = 
+    let ctx = { Request = request; Response = response; Content = "" }
+    ctx |> (app >> answer)
+
+  let notFound str ctx =
+    let res = ctx.Response.status 404.
+    { ctx with Response = res; Content = str} |> Some
 
 open ExpressHelpers
 
@@ -43,20 +53,22 @@ let hasBodyPart str ctx =
   then 
     {
       ctx with 
-        Response = (ctx.Response.send ("Hello world: " + str))
+        Content = ctx.Content + "Hello: " + str
     } |> Some
   else
     None
 
-let helloTomas (request: express.Request) (response: express.Response) =
-  let ctx = { Request = request; Response = response }
-  ctx
-  |> choose [
-    hasBodyPart "Hello"
-    hasBodyPart "Yolo"
-  ]
-  |> answer
-//  response.send "Hello, World!"
+let subApp1 = hasBodyPart "Hello" >=> hasBodyPart "Tomas"
 
-let yolo (request: express.Request) (response: express.Response) =
-  response.send "Yolo, World!"
+let subApp2 = hasBodyPart "Yolo"
+
+let app = 
+      choose 
+        [
+          subApp1
+          subApp2
+          notFound "Stupid stupid me"
+        ]
+
+let helloTomas (request: express.Request) (response: express.Response) = 
+  execute request response app
