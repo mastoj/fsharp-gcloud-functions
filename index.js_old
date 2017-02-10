@@ -1,0 +1,165 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.app = exports.subApp2 = exports.subApp1 = exports.ExpressHelpers = undefined;
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+exports.hasBodyPart = hasBodyPart;
+exports.helloTomas = helloTomas;
+
+var _Symbol2 = require("fable-core/umd/Symbol");
+
+var _Symbol3 = _interopRequireDefault(_Symbol2);
+
+var _Util = require("fable-core/umd/Util");
+
+var _List = require("fable-core/umd/List");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var ExpressHelpers = exports.ExpressHelpers = function (__exports) {
+  var ExpressContext = __exports.ExpressContext = function () {
+    function ExpressContext(request, response, content) {
+      _classCallCheck(this, ExpressContext);
+
+      this.Request = request;
+      this.Response = response;
+      this.Content = content;
+    }
+
+    _createClass(ExpressContext, [{
+      key: _Symbol3.default.reflection,
+      value: function () {
+        return {
+          type: "GcloudFunction.ExpressHelpers.ExpressContext",
+          interfaces: ["FSharpRecord", "System.IEquatable"],
+          properties: {
+            Request: (0, _Util.Interface)("Fable.Import.express.Request"),
+            Response: (0, _Util.Interface)("Fable.Import.express.Response"),
+            Content: "string"
+          }
+        };
+      }
+    }, {
+      key: "Equals",
+      value: function (other) {
+        return (0, _Util.equalsRecords)(this, other);
+      }
+    }]);
+
+    return ExpressContext;
+  }();
+
+  (0, _Symbol2.setType)("GcloudFunction.ExpressHelpers.ExpressContext", ExpressContext);
+
+  var bind = __exports.bind = function (p1, ctx) {
+    if (ctx == null) {
+      return null;
+    } else {
+      return p1(ctx);
+    }
+  };
+
+  var compose = __exports.compose = function (p1, p2, ctx) {
+    var matchValue = p1(ctx);
+
+    if (matchValue != null) {
+      return p2(matchValue);
+    }
+  };
+
+  var op_GreaterGreaterEquals = __exports.op_GreaterGreaterEquals = function (x, p) {
+    return p(x);
+  };
+
+  var op_GreaterEqualsGreater = __exports.op_GreaterEqualsGreater = function (p1, p2) {
+    return function (ctx) {
+      return compose(p1, p2, ctx);
+    };
+  };
+
+  var choose = __exports.choose = function (parts, ctx) {
+    if (parts.tail != null) {
+      var matchValue = parts.head(ctx);
+
+      if (matchValue != null) {
+        return matchValue;
+      } else {
+        return choose(parts.tail, ctx);
+      }
+    }
+  };
+
+  var answer = __exports.answer = function (_arg1) {
+    if (_arg1 == null) {
+      throw new Error("Failed");
+    } else {
+      return _arg1.Response.send(_arg1.Content);
+    }
+  };
+
+  var execute = __exports.execute = function (request, response, app) {
+    var ctx = new ExpressContext(request, response, "");
+    return function ($var1) {
+      return function (_arg1) {
+        return answer(_arg1);
+      }(app($var1));
+    }(ctx);
+  };
+
+  var notFound = __exports.notFound = function (str, ctx) {
+    var res = ctx.Response.status(404);
+    return new ExpressContext(ctx.Request, res, str);
+  };
+
+  return __exports;
+}({});
+
+function hasBodyPart(str, ctx) {
+  if ((0, _Util.toString)(ctx.Request.body).indexOf(str) >= 0) {
+    return function () {
+      var Content = ctx.Content + "Hello: " + str;
+      return new ExpressHelpers.ExpressContext(ctx.Request, ctx.Response, Content);
+    }();
+  }
+}
+
+var subApp1 = exports.subApp1 = ExpressHelpers.op_GreaterEqualsGreater(function () {
+  var str = "Hello";
+  return function (ctx) {
+    return hasBodyPart(str, ctx);
+  };
+}(), function () {
+  var str = "Tomas";
+  return function (ctx) {
+    return hasBodyPart(str, ctx);
+  };
+}());
+
+var subApp2 = exports.subApp2 = function () {
+  var str = "Yolo";
+  return function (ctx) {
+    return hasBodyPart(str, ctx);
+  };
+}();
+
+var app = exports.app = function () {
+  var parts = (0, _List.ofArray)([subApp1, subApp2, function () {
+    var str = "Stupid stupid me";
+    return function (ctx) {
+      return ExpressHelpers.notFound(str, ctx);
+    };
+  }()]);
+  return function (ctx) {
+    return ExpressHelpers.choose(parts, ctx);
+  };
+}();
+
+function helloTomas(request, response) {
+  return ExpressHelpers.execute(request, response, app);
+}

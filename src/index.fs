@@ -3,6 +3,7 @@ open Fable.Import
 open System
 
 module ExpressHelpers = 
+
   type ExpressContext = {
     Request: express.Request
     Response: express.Response
@@ -33,6 +34,28 @@ module ExpressHelpers =
       | None -> choose ps ctx
       | Some ctx -> Some ctx
 
+  let path s ctx = 
+    if ctx.Request.path.StartsWith(s)
+    then Some ctx
+    else None
+
+  let path1 s part =
+    let p = 
+      fun ctx ->
+        match path s ctx with
+        | None -> None
+        | Some ctx ->
+          let urlPath = ctx.Request.path
+          let rest = urlPath.Substring(urlPath.Length)
+          printfn "This is the rest: %s" rest
+          printfn "urlPath: %s" urlPath
+          let uParts = rest.Split('/')
+          printfn "parts: %A" uParts
+          if uParts |> Array.length > 0 
+          then part (uParts.[0]) ctx
+          else None
+    p
+
   let answer = function
     | Some ctx ->
       ctx.Response.send ctx.Content
@@ -53,7 +76,7 @@ let hasBodyPart str ctx =
   then 
     {
       ctx with 
-        Content = ctx.Content + "Hello: " + str
+        Content = ctx.Content + "Hello: " + str + "Path: " + ctx.Request.path + "Route: " + (ctx.Request.route.ToString()) + "Url: " + ctx.Request.url + "Query: " + (ctx.Request.query.ToString()) + "OriginalUrl: " + ctx.Request.originalUrl
     } |> Some
   else
     None
@@ -65,8 +88,9 @@ let subApp2 = hasBodyPart "Yolo"
 let app = 
       choose 
         [
-          subApp1
-          subApp2
+          path "/app1" >=> subApp1
+          path "/app2" >=> subApp2
+          path1 "/tomas/" (fun str -> notFound ("This is a string" + str))
           notFound "Stupid stupid me"
         ]
 
