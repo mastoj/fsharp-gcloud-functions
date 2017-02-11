@@ -39,21 +39,33 @@ module ExpressHelpers =
     then Some ctx
     else None
 
-  let path1 s part =
+  let path1 s (t:string -> 'a option) (part: 'a -> ExpressContext -> ExpressContext option) =
     let p = 
       fun ctx ->
         match path s ctx with
         | None -> None
         | Some ctx ->
           let urlPath = ctx.Request.path
-          let rest = urlPath.Substring(urlPath.Length)
-          printfn "This is the rest: %s" rest
-          printfn "urlPath: %s" urlPath
+          let rest = urlPath.Substring(s.Length)
           let uParts = rest.Split('/')
-          printfn "parts: %A" uParts
-          if uParts |> Array.length > 0 
-          then part (uParts.[0]) ctx
-          else None
+          uParts 
+          |> Array.tryItem 0
+          |> Option.bind t
+          |> Option.bind (fun i -> part i ctx)
+    p
+
+  let path2 s (t:string[] -> 'a option) (part: 'a -> ExpressContext -> ExpressContext option) =
+    let p = 
+      fun ctx ->
+        match path s ctx with
+        | None -> None
+        | Some ctx ->
+          let urlPath = ctx.Request.path
+          let rest = urlPath.Substring(s.Length)
+          let uParts = rest.Split('/')
+          uParts 
+          |> t
+          |> Option.bind (fun i -> part i ctx)
     p
 
   let answer = function
@@ -85,12 +97,23 @@ let subApp1 = hasBodyPart "Hello" >=> hasBodyPart "Tomas"
 
 let subApp2 = hasBodyPart "Yolo"
 
+let parseInt s = 
+  let b, x = Int32.TryParse(s)
+  if b then Some x else None
+
+let parseStringInt strs = 
+  strs
+  |> Array.tryItem 1
+  |> Option.bind parseInt
+  |> Option.bind (fun i -> (strs.[0], i) |> Some)
+
 let app = 
       choose 
         [
           path "/app1" >=> subApp1
           path "/app2" >=> subApp2
-          path1 "/tomas/" (fun str -> notFound ("This is a string" + str))
+          path1 "/tomas/" parseInt ((sprintf ("This is a string: %i")) >> notFound)
+          path2 "/tomas/" parseStringInt ((fun (s,i) -> sprintf ("This is a string: %s and an int: %i") s i) >> notFound)
           notFound "Stupid stupid me"
         ]
 
